@@ -1,0 +1,96 @@
+- name: check user limit on gitlab
+  hosts: localhost
+  vars:
+    days_definition: "{{ ( (ansible_date_time.date | to_datetime('%Y-%m-%d')) - ( item.last_activity_on| to_datetime('%Y-%m-%d')) ).days | int  }}"
+    license_expires: "{{  ( (api_result.json.expires_at | to_datetime('%Y-%m-%d') ) - ( ansible_date_time.date | to_datetime('%Y-%m-%d')) ).days }}"
+    users_left_in_license: "{{ (api_result.json.user_limit) - (api_result.json.active_users | int)  }}"
+    inactivity_days_limit: 90
+    myusers: "{{ lookup('file', 'sample_users.json') }}"
+    expires_test: "2021-09-27"
+    gitlab_token: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          61626236333166363036356263313836303432303165333739646663653165386161326537373232
+          3632306531666334623762353336346634656563356365620a623138356166616136383133396337
+          62633365333864313761653563643734646366363663633366313232393930376563623134613065
+          3831623337623333310a303631383363303964656562396662616264643662613237656635623830
+          38366565613465666463653237336136336634333435313938633338363435326235
+  
+  gather_facts: false
+  tasks:
+
+### get fact for current date
+    - name: gather current time
+      setup:
+        gather_subset:
+          - min
+
+### checking license
+    - name: get license details
+      uri:
+        validate_certs: no
+        headers:
+          PRIVATE-TOKEN: "{{ gitlab_token }}"
+        url: http://gitlab1.marekexample.com/api/v4/license
+        method: GET
+        return_content: yes
+      register: api_result
+
+### checking version
+    - name: get version details
+      uri:
+        validate_certs: no
+        headers:
+          PRIVATE-TOKEN: "{{ gitlab_token }}"
+        url: http://gitlab1.marekexample.com/api/v4/version
+        method: GET
+        return_content: yes
+      register: api_version_result
+
+### checking users
+    - name: refactore dictionary of users
+      set_fact:
+        dict_users_inactivity: "{{ dict_users_activity | default([]) + [{ 
+                'username': item.username, 
+                'email': item.email, 
+                'last_activity_on': item.last_activity_on, 
+                'days_since_last_activity': days_definition 
+              }] }}"
+      loop: "{{ myusers  }}"
+
+
+    - name: display aaa
+      debug:
+        msg: |
+          {{ dict_users_inactivity }}
+      loop: "{{ myusers }}"
+      #when: item.days_since_last_activity.value |int ) > 90
+
+    - name: show users to delete
+      debug:
+        msg: |
+            {{ item }}
+      loop: "{{ dict_users_activity }}"
+      when: 
+        - (item.days_since_last_activity|int) > 90
+      register: delete_users_result
+
+# doesn't work
+#           {{ delete_users_result.item  | to_yaml}}
+#           {{ delete_users_result | to_yaml}}
+    - name: Gitlab report summary
+      debug:
+        msg: |
+          Gitlab version is {{ api_version_result.json.version }} , license type is is {{ api_result.json.plan | capitalize }}, start dates is {{ api_result.json.starts_at  }} and expires {{ api_result.json.expires_at  }}
+          Gitlab user limit is {{ api_result.json.user_limit }} and current active users is {{ api_result.json.active_users }}
+
+          License expires in {{ license_expires }} days
+          {{ users_left_in_license }} users left in license limit
+
+
+          Users without activity bigger than {{ inactivity_days_limit }} days are:
+
+          {% for user in delete_users_result %}
+          {% if user.days_since_last_activity >= 90 %}
+            {{ user }}
+          {% endif %}
+          {% endfor %}
