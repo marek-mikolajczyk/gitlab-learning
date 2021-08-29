@@ -5,11 +5,17 @@ terraform {
       source  = "gitlabhq/gitlab"
       version = "3.6.0"
     }
+  }
+  backend "s3" {
+    bucket = "gitlab-marekexample"
+    key    = "tf-state"
+    region = "eu-west-1"
+  }
 #		github = {
 #     source  = "integrations/github"
 #     version = "~> 4.0"
 #    }
-  }
+  
 }
 
  provider "gitlab" {
