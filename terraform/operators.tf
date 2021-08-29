@@ -18,7 +18,7 @@ resource "gitlab_user" "operator_users" {
     email            = "operator-${count.index}@marekexample.com"
     is_admin         = true
     can_create_group = false
-    is_external      = true
+    is_external      = false
     reset_password   = false
 }
 
@@ -32,18 +32,6 @@ resource "gitlab_group_membership" "operators_team_members" {
 }
 
 
-resource "gitlab_deploy_key" "operators_deploy_key" {
-  count = var.ressources_count_number
-  project = gitlab_project.operators_sample_projects[count.index].path_with_namespace
-  title   = "id rsa"
-  key     = file("~/.ssh/id_rsa.pub")
-}
-# add ssh key for users to download my github projects
-#resource "github_user_ssh_key" "operators_github_ssh" {
-#    title = "operators Github SSH"
-#    key   = file("~/.ssh/id_rsa.pub")
-#}
-
 # create operator projects
 resource "gitlab_project" "operators_sample_projects" {
     count = var.ressources_count_number
@@ -54,6 +42,13 @@ resource "gitlab_project" "operators_sample_projects" {
     import_url = "https://github.com/marek-mikolajczyk/ansible.git"
 
 } 
+
+#resource "gitlab_project_membership" "operators_projects_membership" {
+#  count 	   = var.ressources_count_number
+#  project_id   = gitlab_project.operators_sample_projects[count.index].id
+#  user_id      =  gitlab_user.operator_users[count.index].id
+#  access_level = "maintainer"
+#}
 
 # Add operators' projects to the operator group
 #resource "gitlab_project" "operators_group_project" {
