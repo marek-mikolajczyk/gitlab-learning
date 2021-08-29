@@ -46,14 +46,54 @@
         return_content: yes
       register: api_version_result
 
+### checking users
 
-### summary
+    
+    - name: refactore dictionary of users
+      set_fact:
+        dict_users_inactivity: "{{ dict_users_inactivity | default([]) + [{ 
+                'username': item.username, 
+                'email': item.email, 
+                'last_activity_on': item.last_activity_on, 
+                'days_since_last_activity': days_definition 
+              }] }}"
+      loop: "{{ myusers  }}"
+      register: my_output
+
+  
+    - name: display dict_users_inactivity AAA
+      debug:
+        msg: |
+          {{ dict_users_inactivity | to_yaml }}
+ #     when: ( item.days_since_last_activity |int ) > 90
+
+    - name: show users to delete
+      set_fact:
+        delete_users_result: "{{ item }}"
+      loop: "{{ dict_users_inactivity }}"
+      when: 
+        - (item.days_since_last_activity|int) > 90
+      register: output
+
+    - name: shoe
+      debug:
+        msg: |
+          {{ output  |subelenets}}
+
+# doesn't work
+#           {{ delete_users_result.item  | to_yaml}}
+#           {{ delete_users_result | to_yaml}}
     - name: Gitlab report summary
       debug:
         msg: |
-          Gitlab version is {{ api_version_result.json.version }} , license type is is {{ api_result.json.plan | capitalize }}
-          License starts at {{ api_result.json.starts_at  }} and expires at {{ api_result.json.expires_at  }}
+          Gitlab version is {{ api_version_result.json.version }} , license type is is {{ api_result.json.plan | capitalize }}, start dates is {{ api_result.json.starts_at  }} and expires {{ api_result.json.expires_at  }}
           Gitlab user limit is {{ api_result.json.user_limit }} and current active users is {{ api_result.json.active_users }}
 
           License expires in {{ license_expires }} days
           {{ users_left_in_license }} users left in license limit
+
+
+          Users without activity bigger than {{ inactivity_days_limit }} days are:
+          {% for item in output  %} 
+          {{ item.email.value }}
+          {% endfor %}
