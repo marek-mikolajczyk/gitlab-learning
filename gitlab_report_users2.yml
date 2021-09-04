@@ -1,0 +1,75 @@
+- name: check user limit on gitlab
+  hosts: localhost
+  vars:
+    days_definition: "{{ ( (ansible_date_time.date | to_datetime('%Y-%m-%d')) - ( item.last_activity_on| to_datetime('%Y-%m-%d')) ).days | int  }}"
+    license_expires: "{{  ( (api_result.json.expires_at | to_datetime('%Y-%m-%d') ) - ( ansible_date_time.date | to_datetime('%Y-%m-%d')) ).days }}"
+    users_left_in_license: "{{ (api_result.json.user_limit) - (api_result.json.active_users | int)  }}"
+    inactivity_days_limit: 90
+    myusers: "{{ lookup('file', 'users_nice_content_yaml.yaml') }}"
+    expires_test: "2021-09-27"
+    gitlab_token: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          61626236333166363036356263313836303432303165333739646663653165386161326537373232
+          3632306531666334623762353336346634656563356365620a623138356166616136383133396337
+          62633365333864313761653563643734646366363663633366313232393930376563623134613065
+          3831623337623333310a303631383363303964656562396662616264643662613237656635623830
+          38366565613465666463653237336136336634333435313938633338363435326235
+  
+  gather_facts: false
+  tasks:
+
+### get fact for current date
+    #- name: gather current time
+    #  setup:
+    #    gather_subset:
+    #      - min
+
+### checking users
+    - name: get users
+      uri:
+        validate_certs: no
+        headers:
+          PRIVATE-TOKEN: "{{ gitlab_token }}"
+        url: http://gitlab1.marekexample.com/api/v4/users
+        method: GET
+        return_content: yes
+      register: api_users_result
+
+    - name: define users fact
+      set_fact:
+        my_users : "{{  api_users_result.content | from_json  }}"
+    
+    - name: save output to yaml
+      copy: 
+          content: "{{ my_users | to_nice_yaml}}"
+          dest: ./users_nice_content_yaml.yaml
+
+    - name: save output to json
+      copy: 
+          content: "{{ my_users | to_nice_json }}"
+          dest: ./users_nice_content_json.json
+
+    #- name: what var am i using?
+    #  debug:
+    #    msg: "{{ my_users| type_debug }}"
+
+    - name: use subelements on our dict
+      debug:
+      #  msg: "{{ my_users | items2dict(key_name='username', value_name='using_license_seat' value_name='last_activity_on')}}"
+        #msg: "{{ my_users | map('extract', 'using_license_seat')}}"
+        msg: |
+
+          <table>
+          <tr>
+          <th>USERNAME<th>LICENSE SEAT<th>LAST_ACTIVITY<th>LAST_SIGN_AT</tr>
+          {% for item in my_users %}
+            {% if  item.using_license_seat == True %}
+              <tr><td>{{ item.username }}<td>{{ item.using_license_seat }}<td>{{ item.last_activity_on }}<td>{{ item.last_sign_in_at }}</tr>
+            {% else %}
+            {% endif %}
+          {% endfor %}
+      register: to_html
+    - name: create html report
+      copy: 
+        content: "{{ to_html.msg  }}"
+        dest: /mnt/c/Users/pmare/Desktop/result.html
