@@ -1,0 +1,105 @@
+- name: check user limit on gitlab
+  hosts: localhost
+  vars:
+    inactivity_days_limit: "{{ 4 | int }}"
+    excluded_users:
+      - developer-7
+    gitlab_token: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          61626236333166363036356263313836303432303165333739646663653165386161326537373232
+          3632306531666334623762353336346634656563356365620a623138356166616136383133396337
+          62633365333864313761653563643734646366363663633366313232393930376563623134613065
+          3831623337623333310a303631383363303964656562396662616264643662613237656635623830
+          38366565613465666463653237336136336634333435313938633338363435326235
+  gather_facts: false
+  tasks:
+
+### get fact for current date
+    - name: gather current time
+      setup:
+        gather_subset:
+          - min
+
+### checking users
+    - name: get users
+      uri:
+        validate_certs: no
+        headers:
+          PRIVATE-TOKEN: "{{ gitlab_token }}"
+        url: http://gitlab1.marekexample.com/api/v4/users
+        method: GET
+        return_content: yes
+      register: api_users_result
+
+    - name: define users fact
+      set_fact:
+        my_users : "{{  api_users_result.content | from_json  }}"
+  
+    - name: some debug
+      debug: 
+        msg: |
+           username is {{ item.username }}
+           date_today is {{ date_today }}
+           date_last_activity is {{ date_last_activity }}
+           days without activity is {{ days_without_activity }}
+      loop: "{{  api_users_result.content | from_json  }}"
+      vars:
+        date_today: "{{ ansible_date_time.date | strftime }}"
+        date_last_activity:  "{{ item.last_activity_on | default(item.created_at.split('T')[0], True)|  strftime }}"
+        days_without_activity: "{{  ( (date_today|to_datetime('%Y-%m-%d')) - (date_last_activity|to_datetime('%Y-%m-%d'))  ).days |int }} "
+        # finaly
+        default_last_activity:  "{{ item.created_at | default('1990-01-01', True)|  strftime  }}"
+
+
+# this works
+        #date_today: "{{ ansible_date_time.date | strftime }}"
+        #date_last_activity:  "{{ item.last_activity_on | default(item.created_at.split('T')[0], True)|  strftime }}"
+        #days_without_activity: "{{  ( (date_today|to_datetime('%Y-%m-%d')) - (date_last_activity|to_datetime('%Y-%m-%d'))  ).days |int }} "
+        #default_last_activity:  "{{ item.created_at | default('1990-01-01', True)|  strftime  }}"
+
+
+    - name: refactor dictionary of users
+      set_fact:
+        dict_users_inactivity: "{{ dict_users_inactivity | default([]) + [{ 
+                'username': item.username, 
+                'email': item.email, 
+                'date_last_activity': date_last_activity,
+                'using_license': item.using_license_seat,
+                'days_since_last_activity': days_without_activity,
+                'last_sign_in_at': item.last_sign_in_at 
+              }] }}"
+      loop: "{{  api_users_result.content | from_json  }}"
+      when: 
+        - item.username not in excluded_users
+      vars:
+        date_today: "{{ ansible_date_time.date | strftime }}"
+        date_last_activity:  "{{ item.last_activity_on | default(item.created_at.split('T')[0], True)|  strftime }}"
+        days_without_activity: "{{  ( (date_today|to_datetime('%Y-%m-%d')) - (date_last_activity|to_datetime('%Y-%m-%d'))  ).days |int }} "
+        # finaly
+        default_last_activity:  "{{ item.created_at | default('1990-01-01', True)|  strftime  }}"
+
+
+    - name: generate report
+      debug:
+        msg: |
+          <style>
+          table, th, td {
+            border: 1px solid black;
+            border-collapse: collapse;
+          }
+          </style>
+          <table>
+          <tr>
+          <th>USERNAME<th>USING LICENSE<th>DAYS WITHOUT ACTIVITY<th>LAST_ACTIVITY<th>LAST_SIGN_AT</tr>
+          {% for item in dict_users_inactivity| sort(attribute='days_since_last_activity', reverse = True) %}
+            {% if  item.using_license == True and item.days_since_last_activity >= inactivity_days_limit %}
+              <tr><td>{{ item.username }}<td>{{ item.using_license }}<td>{{ item.days_since_last_activity }}<td>{{ item.date_last_activity }}<td>{{ item.last_sign_in_at }}</tr>
+            {% else %}
+            {% endif %}
+          {% endfor %}
+      register: to_html
+
+    - name: create html report
+      copy: 
+        content: "{{ to_html.msg  }}"
+        dest: /mnt/c/Users/pmare/Desktop/result.html
