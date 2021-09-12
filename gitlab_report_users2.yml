@@ -38,6 +38,16 @@
     - name: define users fact
       set_fact:
         my_users : "{{  api_users_result.content | from_json  }}"
+
+    - name: refactore dictionary of users
+      set_fact:
+        dict_users_inactivity: "{{ dict_users_inactivity | default([]) + [{ 
+                'username': item.username, 
+                'email': item.email, 
+                'last_activity_on': item.last_activity_on, 
+                'days_since_last_activity': days_definition 
+              }] }}"
+      loop: "{{ my_users  }}"
     
     - name: save output to yaml
       copy: 
@@ -58,17 +68,17 @@
       #  msg: "{{ my_users | items2dict(key_name='username', value_name='using_license_seat' value_name='last_activity_on')}}"
         #msg: "{{ my_users | map('extract', 'using_license_seat')}}"
         msg: |
-
           <table>
           <tr>
           <th>USERNAME<th>LICENSE SEAT<th>LAST_ACTIVITY<th>LAST_SIGN_AT</tr>
-          {% for item in my_users %}
+          {% for item in dict_users_inactivity  %}
             {% if  item.using_license_seat == True %}
               <tr><td>{{ item.username }}<td>{{ item.using_license_seat }}<td>{{ item.last_activity_on }}<td>{{ item.last_sign_in_at }}</tr>
             {% else %}
             {% endif %}
           {% endfor %}
       register: to_html
+
     - name: create html report
       copy: 
         content: "{{ to_html.msg  }}"

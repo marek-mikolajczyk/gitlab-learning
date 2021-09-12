@@ -1,7 +1,7 @@
 - name: check user limit on gitlab
   hosts: localhost
   vars:
-    inactivity_days_limit: "{{ 4 | int }}"
+    inactivity_days_limit: "{{ 0 | int }}"
     excluded_users:
       - developer-7
     gitlab_token: !vault |
