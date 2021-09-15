@@ -1,0 +1,45 @@
+- name: check
+  hosts: "gitlab*"
+  become: true
+  gather_facts: false
+  ignore_errors: yes
+  ignore_unreachable: yes
+  tasks:
+
+    - name: test connection
+      ping:
+      register: ping_result
+      ignore_errors: yes
+      ignore_unreachable: yes
+
+    - meta: clear_host_errors
+
+    - name: set var
+      set_fact:
+        ping_error: "{{ ping_result.msg }}"
+        ping_nok: "unreachable_yes"
+      when: ping_result.msg is defined
+
+    - name: create group
+      group_by:
+        key: ping_nok
+      when: ping_result.msg is defined
+    - name: show ping_error
+      debug: 
+        msg: "{{ ping_error }}"
+      when: ping_result.msg is defined
+
+    - name: get time on localhost
+      setup: 
+        gather_subset:
+            - min
+      delegate_to: localhost
+      run_once: yes
+
+    - name: show jinja
+      template:
+        src: test.j2
+        dest: "/mnt/c/Users/pmare/Downloads/file_{{ ansible_date_time.epoch }}.csv"
+      delegate_to: localhost
+      run_once: yes
+      register: report_var

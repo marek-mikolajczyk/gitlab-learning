@@ -1,0 +1,5 @@
+#jinja2: lstrip_blocks: "True", trim_blocks: "False"
+HOSTNAME,ERROR
+{% for item in groups['ping_nok'] -%}
+{{ hostvars[item]['inventory_hostname'] }},{{ hostvars[item]['ansible_user'] }},{{ hostvars[item]['ping_error'] | replace('\n', '') }}
+{% endfor -%}
