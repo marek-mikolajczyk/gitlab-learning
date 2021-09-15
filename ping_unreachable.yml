@@ -1,0 +1,64 @@
+- name: test ping
+  hosts: all
+  gather_facts: false
+  ignore_errors: true
+  ignore_unreachable: true
+  tasks:
+    - name: test ping
+      ping:
+      #command: uptime
+      register: ping_result
+
+        
+    - name: define unreachable or failed reason
+      set_fact:
+        unreachable_is: "yes"
+        unreachable_reason: "{{ ping_result.msg }}"
+      when: ping_result.ping is not defined
+
+    - meta: clear_host_errors
+
+    - name: create unreachable group
+      group_by:
+        key: unreachable_is
+
+    - name: unreachable group 2
+      set_fact:
+        unreachable_group: "{{ groups['unreachable_is'] }}"
+
+
+    - name: process
+      block:
+
+# start of block
+        - name: show my group
+          debug:
+            msg: |
+                {{ unreachable_group }}
+
+        - name: generate report
+          debug:
+            msg: |
+                <style>
+                table, th, td {
+                  border: 1px solid black;
+                  border-collapse: collapse; }
+                </style>
+                <table>
+                <tr>
+                <th>HOSTNAME<th>ERROR
+                {% for item in unreachable_group %}
+                    <tr><td>{{ item }}<td>{{ hostvars[item]['unreachable_reason'] }}</tr>
+                {% endfor %}
+          register: to_html
+
+        - name: create local html report
+          copy: 
+            content: "{{ to_html.msg  }}"
+            dest: result.html
+
+# end of block
+      delegate_to: localhost
+      run_once: yes
+      become: false 
+
