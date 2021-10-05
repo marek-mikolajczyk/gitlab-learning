@@ -1,3 +1,8 @@
+# great book
+# https://learning.oreilly.com/library/view/terraform-up/9781492046899/
+
+
+
 # create group
 # https://registry.terraform.io/providers/gitlabhq/gitlab/latest/docs/resources/group
 
@@ -31,4 +36,10 @@ resource "gitlab_group_membership" "example1_membership" {
   user_id      = gitlab_user.example1_user1.id
   access_level = "guest"
   expires_at   = "2022-12-31"
+}
+
+
+
+data "gitlab_users" "existing_users" {
+  search = "aaa"
 }
