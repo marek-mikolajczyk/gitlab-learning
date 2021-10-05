@@ -1,0 +1,34 @@
+# create group
+# https://registry.terraform.io/providers/gitlabhq/gitlab/latest/docs/resources/group
+
+resource "gitlab_group" "example1" {
+  name        = "example1"
+  path        = "example1"
+  description = "An example group1"
+}
+
+
+# create user
+# https://registry.terraform.io/providers/gitlabhq/gitlab/latest/docs/resources/user
+
+resource "gitlab_user" "example1_user1" {
+  name             = "Example User 1"
+  username         = "example_user1"
+  password         = "superPassword"
+  email            = "example_user1@localhost.local"
+  is_admin         = false
+  projects_limit   = 4
+  can_create_group = false
+  is_external      = true
+  reset_password   = false
+}
+
+# connect groups with users
+# https://registry.terraform.io/providers/gitlabhq/gitlab/latest/docs/resources/group_membership
+
+resource "gitlab_group_membership" "example1_membership" {
+  group_id     = gitlab_group.example1.id
+  user_id      = gitlab_user.example1_user1.id
+  access_level = "guest"
+  expires_at   = "2022-12-31"
+}
